@@ -51,11 +51,13 @@ if (ZeroMQ_INCLUDE_DIRS)
     if (NOT ${CMAKE_CXX_PLATFORM_ID} STREQUAL "Windows")
         find_library(ZeroMQ_LIBRARIES NAMES zmq HINTS ${_ZeroMQ_ROOT}/lib)
     else()
+        message("CMAKE_VS_PLATFORM_TOOLSET: ${CMAKE_VS_PLATFORM_TOOLSET}")
         find_library(
             ZeroMQ_LIBRARY_RELEASE
             NAMES
                 libzmq
                 "libzmq-${CMAKE_VS_PLATFORM_TOOLSET}-mt-${ZeroMQ_VERSION_MAJOR}_${ZeroMQ_VERSION_MINOR}_${ZeroMQ_VERSION_PATCH}"
+                "libzmq-mt-${ZeroMQ_VERSION_MAJOR}_${ZeroMQ_VERSION_MINOR}_${ZeroMQ_VERSION_PATCH}"
             HINTS
                 ${_ZeroMQ_ROOT}/lib
             )
@@ -65,6 +67,7 @@ if (ZeroMQ_INCLUDE_DIRS)
             NAMES
                 libzmq_d
                 "libzmq-${CMAKE_VS_PLATFORM_TOOLSET}-mt-gd-${ZeroMQ_VERSION_MAJOR}_${ZeroMQ_VERSION_MINOR}_${ZeroMQ_VERSION_PATCH}"
+                "libzmq-mt-gd-${ZeroMQ_VERSION_MAJOR}_${ZeroMQ_VERSION_MINOR}_${ZeroMQ_VERSION_PATCH}"
             HINTS
                 ${_ZeroMQ_ROOT}/lib)
 
