@@ -7,7 +7,11 @@ include(GNUInstallDirs)
 include(AzmqCPack)
 
 find_package(Boost 1.48 COMPONENTS system date_time thread chrono random REQUIRED)
-find_package(ZeroMQ 4.0 REQUIRED)
+if(NOT TARGET libzmq AND NOT TARGET libzmq-static)
+    find_package(ZeroMQ 4.0 REQUIRED)
+else()
+    add_library(zeromq::zeromq alias ${ZEROMQ_LIBRARY})
+endif()
 
 add_library(azmq INTERFACE)
 add_library(zeromq::azmq ALIAS azmq)
