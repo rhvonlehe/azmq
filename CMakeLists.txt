@@ -1,79 +1,90 @@
-cmake_minimum_required(VERSION 3.16.3...3.25)
-# -- v3.16.3 is the default version in the current ubuntu lts release
+cmake_minimum_required(VERSION 3.14)
+project(azmq VERSION 1.0.3 LANGUAGES CXX)
 
-project(azmq VERSION 1.1.0 LANGUAGES CXX)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-if (PROJECT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-    set(CMAKE_MASTER_PROJECT YES)
-endif ()
+include(GNUInstallDirs)
+include(AzmqCPack)
 
-# -- options
-option(AZMQ_BUILD_TESTS "run unit tests" ${CMAKE_MASTER_PROJECT})
-option(BUILD_SHARED_LIBS "use the libzmq static or shared" yes)
-option(AZMQ_DEVELOPER "Add verbose warning for developers " ${CMAKE_MASTER_PROJECT})
-option(AZMQ_BUILD_DOC "Add documentation example" ${CMAKE_MASTER_PROJECT})
+find_package(Boost 1.48 COMPONENTS system date_time thread chrono random REQUIRED)
+if(NOT TARGET ${ZEROMQ_LIBRARY})
+    find_package(ZeroMQ 4.0 REQUIRED)
+else()
+    add_library(zeromq::zeromq ALIAS ${ZEROMQ_LIBRARY})
+endif()
 
-# -- config settings --
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+add_library(azmq INTERFACE)
+add_library(zeromq::azmq ALIAS azmq)
 
-# --- dependencies  --
-find_package(
-    Boost 1.68
-    COMPONENTS system
-               date_time
-               thread
-               chrono
-               random
-    REQUIRED)
+string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}" is_top_level)
 
-include(FindAzmqLibzmq.cmake)
+option(AZMQ_BUILD_TESTS "Build azmq tests" OFF)
+option(AZMQ_BUILD_EXAMPLES "Build azmq examples" OFF)
+option(AZMQ_INSTALL "Generate target for installing azmq" ${is_top_level})
 
-set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
-find_package(Threads REQUIRED)
+if (${CMAKE_CXX_PLATFORM_ID} STREQUAL "Windows")
+    # Build for Windows Vista / Windows Server 2008 and later
+    add_definitions(-D_WIN32_WINNT=0x0600)
 
-# --- create library --
-add_library(${PROJECT_NAME} INTERFACE)
-add_library(Azmq::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+    add_definitions(-DNOMINMAX -DWIN32_LEAN_AND_MEAN -D_WINSOCK_DEPRECATED_NO_WARNINGS -D_SCL_SECURE_NO_WARNINGS)
 
-target_link_libraries(${PROJECT_NAME} INTERFACE Azmq::libzmq Boost::boost ${CMAKE_THREAD_LIBS_INIT})
-target_include_directories(${PROJECT_NAME} INTERFACE "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
-                                                     "$<INSTALL_INTERFACE:include>")
+    if (NOT DEFINED Boost_USE_STATIC_LIBS)
+        set(Boost_USE_STATIC_LIBS ON) # On Windows, Boost is compiled as static libraries by default
+    endif()
+endif()
 
-if (AZMQ_DEVELOPER)
-    include(cmake/CompilerWarnings.cmake)
-    add_more_warnings_to(${PROJECT_NAME})
-endif ()
+target_include_directories(azmq
+    INTERFACE
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
+)
 
-if (CMAKE_MASTER_PROJECT AND NOT CMAKE_SKIP_INSTALL_RULES)
-    include(AzmqCPack.cmake)
+target_link_libraries(azmq
+    INTERFACE
+    ${Boost_LIBRARIES}
+    zeromq::zeromq
+)
 
-    include(CMakePackageConfigHelpers)
+if(AZMQ_BUILD_EXAMPLES)
+    add_subdirectory(doc)
+endif()
 
-    # generate the version file for the config file
-    write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
-                                     VERSION ${PROJECT_VERSION} COMPATIBILITY SameMajorVersion)
-
-    # install the public headers
-    install(DIRECTORY azmq DESTINATION include)
-
-    install(TARGETS ${PROJECT_NAME} EXPORT ${PROJECT_NAME}Targets RUNTIME DESTINATION bin ARCHIVE DESTINATION lib)
-    configure_file(${PROJECT_NAME}Config.cmake "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake" COPYONLY)
-    set(ConfigPackageLocation lib/cmake/${PROJECT_NAME})
-    install(EXPORT ${PROJECT_NAME}Targets NAMESPACE Azmq:: DESTINATION ${ConfigPackageLocation})
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
-                  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake DESTINATION ${ConfigPackageLocation})
-
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/FindAzmqLibzmq.cmake" DESTINATION ${ConfigPackageLocation})
-endif ()
-
-if (AZMQ_BUILD_TESTS)
+if(AZMQ_BUILD_TESTS)
     enable_testing()
-    message(STATUS "Building Tests. Be sure to check out test/constexpr_tests for constexpr testing")
     add_subdirectory(test)
-endif ()
+endif()
 
-if (AZMQ_BUILD_DOC)
-  add_subdirectory(doc)
+if(AZMQ_INSTALL AND NOT CMAKE_SKIP_INSTALL_RULES)
+install(
+    DIRECTORY ${PROJECT_SOURCE_DIR}/azmq
+    DESTINATION include)
+
+set(project_config_in "${CMAKE_CURRENT_LIST_DIR}/cmake/azmqConfig.cmake.in")
+set(project_config_out "${CMAKE_CURRENT_BINARY_DIR}/azmqConfig.cmake")
+set(config_targets_file "azmqConfigTargets.cmake")
+set(version_config_file "${CMAKE_CURRENT_BINARY_DIR}/azmqConfigVersion.cmake")
+set(export_dest_dir "${CMAKE_INSTALL_LIBDIR}/cmake/azmq")
+
+# ---------------------------------------------------------------------------------------
+# Install CMake config files
+# ---------------------------------------------------------------------------------------
+install(TARGETS azmq
+        EXPORT azmqTargets
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(EXPORT azmqTargets
+        DESTINATION ${export_dest_dir}
+        NAMESPACE zeromq::
+        FILE ${config_targets_file}
+)
+
+include(CMakePackageConfigHelpers)
+configure_file("${project_config_in}" "${project_config_out}" @ONLY)
+
+write_basic_package_version_file("${version_config_file}" COMPATIBILITY SameMajorVersion)
+install(FILES "${project_config_out}" "${version_config_file}" DESTINATION "${export_dest_dir}")
 endif()

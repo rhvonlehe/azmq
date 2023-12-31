@@ -2,8 +2,10 @@ project(test_socket)
 
 add_executable(${PROJECT_NAME} main.cpp)
 
-find_package(Boost COMPONENTS coroutine)
-
-target_link_libraries(${PROJECT_NAME} Azmq::azmq Boost::coroutine)
+target_link_libraries(
+    ${PROJECT_NAME}
+    PRIVATE
+    zeromq::azmq
+)
 
 add_catch_test(${PROJECT_NAME})
